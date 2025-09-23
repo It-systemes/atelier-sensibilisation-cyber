@@ -321,64 +321,94 @@
 
   <a class="btn sticky-cta" href="#hero-form">Réserver l’atelier</a>
 
-  <script>
-    // Année auto
-    document.getElementById('year').textContent = new Date().getFullYear();
+ <script>
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('hero-form');
+  if (!form) return;
 
-    // Remplir automatiquement l'image du logo si besoin (déjà en base64 dans HTML)
+  // Zone message (créée si absente)
+  let msg = document.getElementById('hero-msg');
+  if (!msg) {
+    msg = document.createElement('p');
+    msg.id = 'hero-msg';
+    msg.className = 'hint';
+    msg.style.marginTop = '8px';
+    msg.setAttribute('role', 'status');
+    msg.setAttribute('aria-live', 'polite');
+    form.appendChild(msg);
+  }
 
-    // Form (hero) — envoi Make
-    const form = document.getElementById('hero-form');
-    const msg  = document.getElementById('hero-msg');
+  const emailEl =
+    form.querySelector('input[name="email"]') ||
+    form.querySelector('input[type="email"]');
 
-    // Remplir automatiquement UTM + referrer
-    (function(){
-      const params = new URLSearchParams(window.location.search);
-      ['utm_source','utm_medium','utm_campaign'].forEach(k=>{
-        const el = document.getElementById(k);
-        if (el) el.value = params.get(k) || '';
-      });
-      const refEl = document.getElementById('referrer');
-      if (refEl) refEl.value = document.referrer || '';
-    })();
+  const showMsg = (text, color = '#ffb4b4') => {
+    msg.textContent = text;
+    msg.style.color = color;
+  };
 
-    form.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      msg.textContent = '';
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    msg.textContent = '';
 
-      const data = Object.fromEntries(new FormData(form).entries());
+    const data = Object.fromEntries(new FormData(form).entries());
 
-      // Validation minimale cohérente avec les names
-      if (
-        !data.fullname ||
-        !data.email ||
-        !data.company ||
-        !data.numerotelephone ||
-        !data.headcount ||
-        !form.consent.checked
-      ){
-        msg.style.color = '#ffb4b4';
-        msg.textContent = 'Merci de compléter les champs requis.';
+    // Champs requis (adapte les "name" si besoin)
+    const required = ['fullname','email','company','numerotelephone','headcount'];
+    const missing = required.some(k => !data[k] || String(data[k]).trim() === '');
+    const consentOK = !!form.querySelector('[name="consent"]')?.checked;
+
+    if (missing || !consentOK) {
+      showMsg('Merci de compléter les champs requis.');
+      return;
+    }
+
+    // ✅ Validation email
+    const email = String(data.email || '').trim();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+    if (!emailRegex.test(email)) {
+      showMsg('Veuillez saisir une adresse email valide (exemple : nom@domaine.fr)');
+      emailEl?.focus();
+      return;
+    }
+
+    // Envoi
+    try {
+      const action = form.action?.trim();
+      const method = (form.method || 'POST').toUpperCase();
+
+      if (!action) {
+        showMsg('Configuration manquante : aucune URL d’envoi (form.action).');
         return;
       }
 
-      try{
-        const res = await fetch(form.action, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
-          body: new URLSearchParams(data).toString()
-        });
-        if (!res.ok) throw new Error('HTTP '+res.status);
+      const res = await fetch(action, {
+        method,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams(data).toString()
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
 
-        msg.style.color = '#86efac';
-        msg.textContent = 'Merci ! Nous revenons vers vous sous 24h ouvrées.';
-        form.reset();
-      }catch(err){
-        msg.style.color = '#ffb4b4';
-        msg.textContent = 'Oups, une erreur est survenue. Réessayez ou contactez-nous.';
-      }
-    });
-  </script>
+      showMsg('Merci ! Nous revenons vers vous sous 24h ouvrées.', '#86efac');
+      form.reset();
+    } catch (err) {
+      console.error(err);
+      showMsg('Oups, une erreur est survenue. Réessayez ou contactez-nous.');
+    }
+  });
+
+  // Feedback email (optionnel)
+  emailEl?.addEventListener('blur', () => {
+    const v = emailEl.value.trim();
+    if (v && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(v)) {
+      showMsg('Adresse email invalide (ex : nom@domaine.fr)');
+    } else if (msg.textContent.includes('email')) {
+      msg.textContent = '';
+    }
+  });
+});
+</script>
+
 </body>
 </html>
 
